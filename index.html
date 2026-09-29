@@ -1,0 +1,546 @@
+x<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>QR Generator — Direct Link, Tanpa Redirect</title>
+<script src="https://cdn.jsdelivr.net/npm/qr-code-styling@1.6.0-rc.1/lib/qr-code-styling.js"></script>
+<style>
+  :root {
+    --bg: #f5f6fa;
+    --card: #ffffff;
+    --border: #e5e7eb;
+    --text: #0f172a;
+    --muted: #64748b;
+    --accent: #6366f1;
+    --accent-hover: #4f46e5;
+    --ok: #10b981;
+    --err: #ef4444;
+    --shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 8px 24px rgba(15, 23, 42, .06);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    min-height: 100vh;
+    padding: 32px 20px 60px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  header { margin-bottom: 28px; }
+  header h1 {
+    font-size: 26px; font-weight: 700; margin: 0 0 6px;
+    letter-spacing: -0.02em;
+  }
+  header p { margin: 0; color: var(--muted); font-size: 14.5px; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #eef2ff; color: var(--accent-hover);
+    font-size: 12px; font-weight: 600;
+    padding: 4px 10px; border-radius: 999px;
+    margin-bottom: 12px;
+  }
+  .badge::before {
+    content: ""; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1.05fr 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 860px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    box-shadow: var(--shadow);
+  }
+
+  .field { margin-bottom: 16px; }
+  .field:last-child { margin-bottom: 0; }
+  label {
+    display: block; font-size: 12.5px; font-weight: 600;
+    color: var(--muted); margin-bottom: 6px;
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  input[type="text"], select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #fff;
+    font-size: 14.5px;
+    color: var(--text);
+    font-family: inherit;
+    transition: border-color .15s, box-shadow .15s;
+    outline: none;
+  }
+  input[type="text"]:focus, select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, .15);
+  }
+
+  .url-wrap { position: relative; }
+  .url-wrap input { padding-right: 38px; }
+  .url-status {
+    position: absolute; right: 12px; top: 50%;
+    transform: translateY(-50%);
+    font-size: 16px; line-height: 1;
+    pointer-events: none;
+  }
+  .hint {
+    font-size: 12.5px; margin-top: 6px;
+    color: var(--muted);
+  }
+  .hint.err { color: var(--err); }
+  .hint.ok { color: var(--ok); }
+
+  details {
+    border-top: 1px solid var(--border);
+    margin-top: 18px;
+    padding-top: 16px;
+  }
+  summary {
+    cursor: pointer;
+    font-size: 13px; font-weight: 600;
+    color: var(--accent-hover);
+    list-style: none;
+    user-select: none;
+    padding: 4px 0;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary::before {
+    content: "▸"; display: inline-block;
+    margin-right: 6px; transition: transform .15s;
+  }
+  details[open] summary::before { transform: rotate(90deg); }
+  details[open] { padding-bottom: 4px; }
+
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 480px) { .row { grid-template-columns: 1fr; } }
+
+  .color-row { display: flex; gap: 8px; }
+  input[type="color"] {
+    -webkit-appearance: none; appearance: none;
+    width: 44px; height: 40px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    cursor: pointer;
+    padding: 3px;
+    background: #fff;
+  }
+  input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+  input[type="color"]::-webkit-color-swatch {
+    border: none; border-radius: 7px;
+  }
+  input[type="color"]::-moz-color-swatch {
+    border: none; border-radius: 7px;
+  }
+
+  /* Preview side */
+  .preview-card {
+    display: flex; flex-direction: column;
+  }
+  .qr-frame {
+    background: #fff;
+    border-radius: 12px;
+    padding: 16px;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 320px;
+    border: 1px dashed var(--border);
+  }
+  .qr-frame canvas, .qr-frame svg {
+    display: block; max-width: 100%; height: auto;
+  }
+
+  .encoded {
+    margin-top: 16px;
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12.5px;
+    color: #334155;
+    word-break: break-all;
+    max-height: 90px; overflow-y: auto;
+  }
+  .encoded .lbl {
+    display: block; font-family: inherit;
+    font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted); font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .actions {
+    display: flex; gap: 8px; margin-top: 16px;
+    flex-wrap: wrap;
+  }
+  button {
+    font-family: inherit;
+    font-size: 13.5px; font-weight: 600;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--text);
+    cursor: pointer;
+    transition: all .15s;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  button:hover:not(:disabled) {
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+  }
+  button:disabled {
+    opacity: .5; cursor: not-allowed;
+  }
+  button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    flex: 1;
+    justify-content: center;
+  }
+  button.primary:hover:not(:disabled) {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+  }
+
+  .note {
+    font-size: 12.5px; color: var(--muted);
+    margin-top: 14px; line-height: 1.6;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+  .note strong { color: var(--text); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="badge">Direct QR · Tanpa Redirect</div>
+    <h1>QR Generator</h1>
+    <p>URL asli langsung tersimpan di dalam QR. Tidak ada shortlink, tidak ada server perantara.</p>
+  </header>
+
+  <div class="grid">
+    <!-- ============ LEFT: CONTROLS ============ -->
+    <div class="card">
+      <div class="field">
+        <label for="urlInput">URL Tujuan</label>
+        <div class="url-wrap">
+          <input id="urlInput" type="text" value="https://example.com" placeholder="contoh.com/halaman" autocomplete="off" spellcheck="false" />
+          <span class="url-status" id="urlStatus"></span>
+        </div>
+        <div class="hint" id="urlHint">Ketik domain tanpa <code>https://</code> juga boleh.</div>
+      </div>
+
+      <details>
+        <summary>Pengaturan lanjutan</summary>
+
+        <div class="row" style="margin-top: 14px;">
+          <div class="field">
+            <label for="size">Ukuran download (px)</label>
+            <select id="size">
+              <option value="256">256 × 256</option>
+              <option value="512">512 × 512</option>
+              <option value="1024" selected>1024 × 1024</option>
+              <option value="2048">2048 × 2048</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="ec">Error correction</label>
+            <select id="ec">
+              <option value="L">L — 7%</option>
+              <option value="M" selected>M — 15%</option>
+              <option value="Q">Q — 25%</option>
+              <option value="H">H — 30%</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="margin">Margin / quiet zone (module)</label>
+          <select id="margin">
+            <option value="0">0</option>
+            <option value="2">2</option>
+            <option value="4" selected>4 (disarankan)</option>
+            <option value="8">8</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="fgHex">Warna QR</label>
+            <div class="color-row">
+              <input type="color" id="fgColor" value="#0f172a" />
+              <input type="text" id="fgHex" value="#0f172a" />
+            </div>
+          </div>
+          <div class="field">
+            <label for="bgHex">Warna latar</label>
+            <div class="color-row">
+              <input type="color" id="bgColor" value="#ffffff" />
+              <input type="text" id="bgHex" value="#ffffff" />
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <div class="note">
+        <strong>Catatan:</strong> QR ini berisi URL asli sebagai teks. Scanner akan membuka domain tujuan secara langsung — tanpa perantara, tanpa tracking, tanpa halaman “klik untuk lanjut”.
+      </div>
+    </div>
+
+    <!-- ============ RIGHT: PREVIEW ============ -->
+    <div class="card preview-card">
+      <div class="qr-frame" id="preview"></div>
+
+      <div class="encoded">
+        <span class="lbl">Isi QR (encoded)</span>
+        <span id="encodedText">https://example.com</span>
+      </div>
+
+      <div class="actions">
+        <button class="primary" id="btnPng">
+          ⬇ PNG
+        </button>
+        <button id="btnSvg">⬇ SVG</button>
+        <button id="btnCopy" title="Copy URL asli">📋 Copy URL</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- Elements ----------
+  const $ = (id) => document.getElementById(id);
+  const els = {
+    url: $("urlInput"),
+    urlStatus: $("urlStatus"),
+    urlHint: $("urlHint"),
+    size: $("size"),
+    ec: $("ec"),
+    margin: $("margin"),
+    fgColor: $("fgColor"),
+    fgHex: $("fgHex"),
+    bgColor: $("bgColor"),
+    bgHex: $("bgHex"),
+    preview: $("preview"),
+    encodedText: $("encodedText"),
+    btnPng: $("btnPng"),
+    btnSvg: $("btnSvg"),
+    btnCopy: $("btnCopy"),
+  };
+
+  // ---------- State ----------
+  let currentUrl = "";
+  let isValid = false;
+  let previewQr = null;
+
+  // ---------- Helpers ----------
+  function normalizeUrl(raw) {
+    let v = (raw || "").trim();
+    if (!v) return "";
+    // Kalau belum ada skema, tambahkan https://
+    if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(v)) {
+      v = "https://" + v;
+    }
+    return v;
+  }
+
+  function validateUrl(v) {
+    if (!v) return { ok: false, empty: true };
+    try {
+      const u = new URL(v);
+      if (u.protocol !== "http:" && u.protocol !== "https:") {
+        return { ok: false, reason: "Hanya http:// atau https://" };
+      }
+      if (!u.hostname || !u.hostname.includes(".")) {
+        return { ok: false, reason: "Domain tidak valid" };
+      }
+      return { ok: true, url: u.href };
+    } catch (e) {
+      return { ok: false, reason: "URL tidak valid" };
+    }
+  }
+
+  function baseOptions() {
+    const fg = els.fgHex.value || "#000000";
+    const bg = els.bgHex.value || "#ffffff";
+    return {
+      data: currentUrl || "https://example.com",
+      margin: parseInt(els.margin.value, 10),
+      qrOptions: {
+        errorCorrectionLevel: els.ec.value,
+      },
+      dotsOptions: { color: fg, type: "square" },
+      cornersSquareOptions: { color: fg, type: "square" },
+      cornersDotOptions: { color: fg, type: "square" },
+      backgroundOptions: { color: bg },
+    };
+  }
+
+  function previewOptions() {
+    return Object.assign({}, baseOptions(), {
+      width: 320,
+      height: 320,
+      type: "canvas",
+    });
+  }
+
+  function downloadOptions() {
+    return Object.assign({}, baseOptions(), {
+      width: parseInt(els.size.value, 10),
+      height: parseInt(els.size.value, 10),
+    });
+  }
+
+  // ---------- Render ----------
+  function renderPreview() {
+    const opts = previewOptions();
+    if (!previewQr) {
+      previewQr = new QRCodeStyling(opts);
+      previewQr.append(els.preview);
+    } else {
+      previewQr.update(opts);
+    }
+  }
+
+  function updateStatus() {
+    const raw = els.url.value;
+    const normalized = normalizeUrl(raw);
+    const result = validateUrl(normalized);
+
+    if (result.empty) {
+      els.urlStatus.textContent = "";
+      els.urlHint.textContent = "Ketik domain tanpa https:// juga boleh.";
+      els.urlHint.className = "hint";
+      isValid = false;
+    } else if (result.ok) {
+      els.urlStatus.textContent = "✅";
+      els.urlHint.textContent = "URL valid · QR berisi URL asli ini.";
+      els.urlHint.className = "hint ok";
+      currentUrl = result.url;
+      isValid = true;
+    } else {
+      els.urlStatus.textContent = "⚠️";
+      els.urlHint.textContent = result.reason || "URL tidak valid";
+      els.urlHint.className = "hint err";
+      currentUrl = normalized;
+      isValid = false;
+    }
+
+    els.encodedText.textContent = currentUrl || "—";
+    els.btnPng.disabled = !isValid;
+    els.btnSvg.disabled = !isValid;
+    els.btnCopy.disabled = !isValid;
+
+    renderPreview();
+  }
+
+  // ---------- Download ----------
+  async function downloadAs(ext) {
+    if (!isValid) return;
+    try {
+      let instance = previewQr;
+      if (ext === "svg") {
+        // Instance khusus SVG (karena type ditentukan saat construct)
+        instance = new QRCodeStyling(
+          Object.assign({}, downloadOptions(), { type: "svg" })
+        );
+      } else {
+        instance = new QRCodeStyling(
+          Object.assign({}, downloadOptions(), { type: "canvas" })
+        );
+      }
+
+      const blob = await instance.getRawData(ext);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName(ext);
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    } catch (err) {
+      console.error(err);
+      alert("Gagal generate file. Coba lagi.");
+    }
+  }
+
+  function fileName(ext) {
+    let host = "qr-code";
+    try {
+      host = "qr-" + new URL(currentUrl).hostname.replace(/\./g, "-");
+    } catch (_) {}
+    return host + "." + ext;
+  }
+
+  // ---------- Copy ----------
+  async function copyUrl() {
+    if (!isValid) return;
+    try {
+      await navigator.clipboard.writeText(currentUrl);
+      const original = els.btnCopy.textContent;
+      els.btnCopy.textContent = "✓ Tersalin";
+      setTimeout(() => (els.btnCopy.textContent = original), 1400);
+    } catch (_) {
+      // fallback
+      const ta = document.createElement("textarea");
+      ta.value = currentUrl;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+    }
+  }
+
+  // ---------- Color inputs sync ----------
+  function syncColor(colorEl, hexEl) {
+    colorEl.addEventListener("input", () => {
+      hexEl.value = colorEl.value;
+      renderPreview();
+    });
+    hexEl.addEventListener("input", () => {
+      const v = hexEl.value.trim();
+      if (/^#[0-9a-f]{6}$/i.test(v)) {
+        colorEl.value = v;
+        renderPreview();
+      }
+    });
+  }
+
+  // ---------- Events ----------
+  els.url.addEventListener("input", updateStatus);
+  els.ec.addEventListener("change", renderPreview);
+  els.margin.addEventListener("change", renderPreview);
+  els.size.addEventListener("change", () => {/* hanya untuk download */});
+
+  syncColor(els.fgColor, els.fgHex);
+  syncColor(els.bgColor, els.bgHex);
+
+  els.btnPng.addEventListener("click", () => downloadAs("png"));
+  els.btnSvg.addEventListener("click", () => downloadAs("svg"));
+  els.btnCopy.addEventListener("click", copyUrl);
+
+  // ---------- Init ----------
+  updateStatus();
+})();
+</script>
+</body>
+</html>
