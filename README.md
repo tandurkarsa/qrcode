@@ -60,7 +60,7 @@ Artinya:
 
 Coba langsung tanpa install:
 
-### 👉 **[[username].github.io/[nama-repo]](https://[username].github.io/[nama-repo]/)**
+### 👉 **[https://tandurkarsa.github.io/qrcode/](https://tandurkarsa.github.io/qrcode/)**
 
 ---
 
@@ -97,8 +97,8 @@ Akibatnya untuk pengguna:
 
 ```bash
 # Clone repo
-git clone https://github.com/[username]/[nama-repo].git
-cd [nama-repo]
+git clone https://tandurkarsa.github.io/qrcode/.git
+cd qrcode
 
 # Buka di browser
 # Cukup double-click index.html
