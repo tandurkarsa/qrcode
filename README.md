@@ -1,3 +1,4 @@
+![Preview](preview.png)
 <div align="center">
 
 # 🔳 QR Generator — Direct Link
@@ -21,6 +22,7 @@
 **QR Generator — Direct Link** adalah alat berbasis web yang membuat QR code dengan **URL asli langsung di-encode ke dalamnya**. Berbeda dengan kebanyakan QR generator online yang menyimpan shortlink milik mereka (dan mengarahkan ulang ke URL tujuan), alat ini menyimpan URL asli secara permanen.
 
 Artinya:
+
 - ✅ QR berlaku **selamanya** — tidak peduli situs ini masih online atau tidak
 - ✅ **Tanpa redirect**, tanpa perantara, tanpa iklan
 - ✅ **Tanpa tracking** — tidak ada data yang dikirim ke server mana pun
@@ -97,12 +99,11 @@ Akibatnya untuk pengguna:
 
 ```bash
 # Clone repo
-git clone https://tandurkarsa.github.io/qrcode/.git
+git clone https://github.com/tandurkarsa/qrcode.git
 cd qrcode
 
-# Buka di browser
-# Cukup double-click index.html
-# atau pakai live server:
+# Buka index.html di browser
+# Cukup double-click, atau pakai live server:
 npx serve .
 ```
 
@@ -114,13 +115,13 @@ Tidak perlu install apa pun. Tidak perlu `npm install`. Tidak perlu build step. 
 
 ```
 .
-├── index.html      # Aplikasi utama (single-file, ~350 baris)
-├── preview.png     # Thumbnail untuk social media preview
+├── index.html      # Aplikasi utama (single-file, HTML + CSS + JS)
 ├── LICENSE         # MIT License
 └── README.md       # Dokumentasi ini
 ```
 
 Proyek ini sengaja dibuat **single-file** supaya:
+
 - Mudah di-host di mana saja (GitHub Pages, Netlify, Vercel, USB, dll)
 - Mudah di-audit — semua kode ada di satu tempat
 - Tidak ada dependency build tool
@@ -133,10 +134,10 @@ Proyek ini sengaja dibuat **single-file** supaya:
 |---|---|
 | **Markup & Styling** | HTML5, CSS3 (Custom Properties, Grid, Flexbox) |
 | **Logika** | Vanilla JavaScript (ES6+, tanpa framework) |
-| **Library QR** | [qr-code-styling](https://github.com/soldair/node-qrcode) via CDN |
+| **Library QR** | [qr-code-styling](https://github.com/kozakdenys/qr-code-styling) via CDN |
 | **Hosting** | GitHub Pages |
 
-**Kenapa vanilla JS?** Karena proyek ini kecil dan fokus. Tidak perlu React/Vue untuk sesuatu yang bisa selesai dalam ~350 baris.
+**Kenapa vanilla JS?** Karena proyek ini kecil dan fokus. Tidak perlu React/Vue untuk sesuatu yang bisa selesai dalam satu file.
 
 ---
 
@@ -147,7 +148,7 @@ Proyek ini dirancang dengan prinsip **privacy-first**:
 - ❌ **Tidak ada backend** — tidak ada server yang menerima data
 - ❌ **Tidak ada analytics** — tidak ada Google Analytics, Plausible, dll
 - ❌ **Tidak ada cookies** — tidak ada tracking sama sekali
-- ❌ **Tidak ada external request** — kecuali CDN library saat pertama load
+- ⚠️ **External request minimal** — hanya CDN library saat pertama load
 - ✅ **Semua proses di browser** — URL kamu tidak pernah meninggalkan perangkat
 
 Kamu bisa **matikan koneksi internet setelah halaman ter-load**, dan generator tetap berfungsi penuh.
@@ -176,6 +177,7 @@ Kalau URL kamu terlalu panjang, QR akan sangat padat dan sulit discan, terutama 
 <summary><b>Kenapa QR-nya tidak bisa di-scan?</b></summary>
 
 Beberapa kemungkinan:
+
 1. **Ukuran terlalu kecil** — coba download di ukuran lebih besar (1024px atau 2048px)
 2. **Kontras kurang** — pastikan warna QR gelap dan background terang
 3. **Quiet zone terlalu tipis** — pakai margin minimal 4 module
@@ -187,7 +189,7 @@ Beberapa kemungkinan:
 <details>
 <summary><b>Apakah bisa dipakai untuk WiFi, vCard, atau teks biasa?</b></summary>
 
-Saat ini hanya untuk URL. Untuk format lain (WiFi, vCard, email, SMS) tidak ada di MVP ini, tapi bisa ditambahkan di versi berikutnya — lihat [Roadmap](#-roadmap).
+Saat ini hanya untuk URL. Format lain (WiFi, vCard, email, SMS) belum didukung di versi ini, tapi ada di [roadmap](#-roadmap).
 </details>
 
 <details>
@@ -252,7 +254,7 @@ Proyek ini mengikuti [Conventional Commits](https://www.conventionalcommits.org/
 
 Proyek ini tidak akan ada tanpa:
 
-- [**qr-code-styling**](https://github.com/soldair/node-qrcode) — library QR code yang powerful dan fleksibel
+- [**qr-code-styling**](https://github.com/kozakdenys/qr-code-styling) oleh [@kozakdenys](https://github.com/kozakdenys) — library QR code yang powerful dan fleksibel (MIT License)
 - [**GitHub Pages**](https://pages.github.com/) — hosting gratis untuk proyek ini
 - [**Shields.io**](https://shields.io/) — untuk badge yang keren
 
@@ -267,9 +269,25 @@ Lihat file [LICENSE](LICENSE) untuk detail lengkap.
 ```
 MIT License
 
-Copyright (c) 2025 [Nama Kamu / Username GitHub]
+Copyright (c) 2025 Tandur Karsa
 
-Permission is hereby granted, free of charge, ...
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 ```
 
 ---
