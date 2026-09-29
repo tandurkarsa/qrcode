@@ -1,3 +1,5 @@
+![Preview](preview.png)
+
 # QR Code Generator — Direct Link
 
 Generator QR code sederhana yang menyimpan **URL asli secara langsung** ke dalam QR. Tidak ada shortlink, tidak ada redirect, tidak ada tracking.
