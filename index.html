@@ -446,6 +446,7 @@
   let currentData="";
   let isValid=false;
   let previewQr=null;
+  let previewQrHasLogo=null;  // ← BARU: track logo state
   let logoDataUrl=null;
   let colorMode="solid"; // "solid" | "gradient"
 
@@ -956,10 +957,22 @@
     const size=parseInt(els.size.value,10);
     return Object.assign({},baseOptions(),{width:size,height:size});
   }
-  function renderPreview(){
+    function renderPreview(){
     const opts=previewOptions();
-    if(!previewQr){previewQr=new QRCodeStyling(opts);previewQr.append(els.qrCanvasWrap);}
-    else{previewQr.update(opts);}
+    const hasLogoNow=!!logoDataUrl;
+
+    // Recreate instance kalau:
+    // - Belum ada instance, ATAU
+    // - Transisi logo state berubah (ada-logo ↔ tidak-ada-logo)
+    // Karena library pakai deepmerge, kita tidak bisa hapus image via update()
+    if(!previewQr || previewQrHasLogo!==hasLogoNow){
+      els.qrCanvasWrap.innerHTML="";
+      previewQr=new QRCodeStyling(opts);
+      previewQr.append(els.qrCanvasWrap);
+      previewQrHasLogo=hasLogoNow;
+    }else{
+      previewQr.update(opts);
+    }
   }
 
   // CONTRAST (support gradient)
@@ -984,7 +997,7 @@
     return(lighter+0.05)/(darker+0.05);
   }
 
-  function updateContrastChecker(){
+    function updateContrastChecker(){
     let fgColors,bg;
     if(colorMode==="gradient"){
       fgColors=[els.fgGrad1Hex.value,els.fgGrad2Hex.value];
@@ -994,7 +1007,6 @@
       bg=els.bgHex.value.trim();
     }
 
-    // Hitung ratio untuk tiap warna QR
     const ratios=fgColors.map((fg)=>contrastRatio(fg,bg));
     if(ratios.some((r)=>r===null)){
       els.contrastPanel.className="contrast-panel";
@@ -1004,21 +1016,28 @@
       return;
     }
 
-    // Ambil rasio TERBURUK (worst case)
     const worstRatio=Math.min(...ratios);
     const worstIdx=ratios.indexOf(worstRatio);
     const worstFg=fgColors[worstIdx];
 
-    // Cek polaritas: semua warna QR harus lebih gelap dari bg
     const bgLum=relLum(hexToRgb(bg));
     const allPolarityOk=fgColors.every((fg)=>relLum(hexToRgb(fg))<bgLum);
 
+    // ============================================================
+    // Threshold khusus QR (bukan WCAG teks)
+    // Referensi: ISO/IEC 18004 + praktik umum
+    //   < 1.5:1  → hampir pasti gagal
+    //   1.5-2.5  → berisiko (tergantung cahaya & kamera)
+    //   2.5-4    → cukup (aman untuk mayoritas kondisi)
+    //   4-7      → baik
+    //   > 7      → sangat baik
+    // ============================================================
     let statusClass,statusText;
     if(worstRatio>=7&&allPolarityOk){statusClass="ok";statusText="Sangat baik";}
-    else if(worstRatio>=4.5&&allPolarityOk){statusClass="ok";statusText="Baik";}
-    else if(worstRatio>=3&&allPolarityOk){statusClass="warn";statusText="Cukup";}
-    else if(worstRatio>=4.5&&!allPolarityOk){statusClass="warn";statusText="Polaritas terbalik";}
-    else if(worstRatio>=3){statusClass="warn";statusText="Berisiko";}
+    else if(worstRatio>=4&&allPolarityOk){statusClass="ok";statusText="Baik";}
+    else if(worstRatio>=2.5&&allPolarityOk){statusClass="ok";statusText="Cukup";}
+    else if(worstRatio>=2.5&&!allPolarityOk){statusClass="warn";statusText="Polaritas terbalik";}
+    else if(worstRatio>=1.5){statusClass="warn";statusText="Berisiko";}
     else{statusClass="err";statusText="Tidak bisa discan";}
 
     els.contrastPanel.className="contrast-panel "+statusClass;
@@ -1031,20 +1050,20 @@
       const r2=ratios[1].toFixed(2);
       lines.push(`🎨 Gradient · Warna awal: ${r1}:1 · Warna akhir: ${r2}:1`);
     }
-    if(worstRatio>=7)lines.push("✅ Rasio kontras sangat tinggi.");
-    else if(worstRatio>=4.5)lines.push("✅ Rasio kontras memadai.");
-    else if(worstRatio>=3)lines.push("⚠️ Rasio kontras rendah.");
-    else lines.push("❌ Rasio kontras terlalu rendah.");
+    if(worstRatio>=4)lines.push("✅ Kontras aman untuk semua kondisi scan.");
+    else if(worstRatio>=2.5)lines.push("✅ Kontras cukup — bisa discan di cahaya normal.");
+    else if(worstRatio>=1.5)lines.push("⚠️ Kontras rendah — mungkin gagal di kondisi cahaya kurang.");
+    else lines.push("❌ Kontras terlalu rendah untuk discan.");
 
     if(allPolarityOk)lines.push("✅ Polaritas benar: QR gelap di atas latar terang.");
-    else lines.push("⚠️ Polaritas terbalik pada beberapa warna.");
+    else lines.push("⚠️ Polaritas terbalik: banyak scanner mengasumsikan latar lebih terang dari QR.");
 
     let tip="";
-    if(colorMode==="gradient"&&worstRatio<4.5){
+    if(colorMode==="gradient"&&worstRatio<2.5){
       tip=`Tips: Warna ${worstIdx===0?"awal":"akhir"} (${worstFg}) terlalu terang. Pilih warna lebih gelap.`;
-    }else if(!allPolarityOk&&worstRatio>=4.5){
+    }else if(!allPolarityOk&&worstRatio>=2.5){
       tip="Tips: Tukar warna QR dan latar.";
-    }else if(worstRatio<4.5&&allPolarityOk){
+    }else if(worstRatio<2.5&&allPolarityOk){
       tip="Tips: Gunakan warna QR lebih gelap atau latar lebih terang.";
     }
 
