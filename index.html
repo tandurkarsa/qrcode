@@ -71,22 +71,13 @@
   input[type="color"]::-webkit-color-swatch-wrapper{padding:0}
   input[type="color"]::-webkit-color-swatch{border:none;border-radius:7px}
   input[type="color"]::-moz-color-swatch{border:none;border-radius:7px}
-  /* Color mode toggle */
   .mode-toggle{display:inline-flex;background:#f1f5f9;border-radius:10px;padding:3px;margin-bottom:14px;gap:2px}
   .mode-toggle-btn{border:none;background:transparent;padding:6px 14px;border-radius:7px;font-family:inherit;font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:5px}
   .mode-toggle-btn.active{background:#fff;color:var(--text);box-shadow:0 1px 3px rgba(15,23,42,.08)}
-  /* Gradient preview strip */
   .grad-preview{height:36px;border-radius:var(--radius-sm);border:1px solid var(--border);margin-top:8px;position:relative;overflow:hidden;background:#fff}
   .grad-preview .grad-strip{position:absolute;inset:0}
-  .grad-preview .grad-strip.linear-45{background:linear-gradient(45deg,var(--gc1),var(--gc2))}
-  .grad-preview .grad-strip.linear-90{background:linear-gradient(90deg,var(--gc1),var(--gc2))}
-  .grad-preview .grad-strip.linear-135{background:linear-gradient(135deg,var(--gc1),var(--gc2))}
-  .grad-preview .grad-strip.radial{background:radial-gradient(circle,var(--gc1),var(--gc2))}
-  /* Range slider */
   input[type="range"]{width:100%;accent-color:var(--accent);height:6px;margin-top:10px}
   .range-labels{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:2px}
-  .range-value{text-align:center;font-size:12px;font-weight:600;color:var(--accent-hover);margin-top:4px}
-  /* Logo */
   .logo-uploader{display:flex;align-items:center;gap:12px;padding:12px;background:#fafbfc;border:1.5px dashed var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:all .15s}
   .logo-uploader:hover{border-color:var(--accent);background:var(--accent-soft)}
   .logo-uploader.has-logo{border-style:solid;background:#fff;padding:10px 12px}
@@ -121,6 +112,7 @@
   .qr-canvas-wrap{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center}
   .qr-frame canvas,.qr-frame svg{display:block;max-width:100%;height:auto}
   .preview-cta{margin-top:12px;font-weight:700;font-size:14px;text-align:center;padding:0 4px;word-break:break-word;max-width:100%}
+  .qr-error{padding:40px 20px;text-align:center;color:var(--err);font-size:13px;line-height:1.6;max-width:280px}
   .encoded-wrap{margin-top:16px;border:1px solid var(--border);border-radius:var(--radius-sm);background:#f8fafc;overflow:hidden}
   .encoded-toggle{display:flex;align-items:center;gap:8px;width:100%;padding:10px 14px;background:none;border:none;font-family:inherit;font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer;text-align:left}
   .encoded-toggle:hover{color:var(--text)}
@@ -168,8 +160,7 @@
   .modal-footer{display:flex;gap:8px;padding:16px 20px;border-top:1px solid var(--border);background:#fafbfc}
   .modal-footer button{flex:1}
   .footer-note{margin-top:20px;text-align:center;font-size:12px;color:var(--muted-soft)}
-    /* Fix: pastikan [hidden] selalu menang lawan display custom */
-  [hidden] { display: none !important; }
+  [hidden]{display:none !important}
 </style>
 </head>
 <body>
@@ -243,13 +234,11 @@
 
         <div class="section-label">Warna</div>
 
-        <!-- Color mode toggle -->
         <div class="mode-toggle" id="colorModeToggle">
           <button type="button" class="mode-toggle-btn active" data-color-mode="solid">🎨 Solid</button>
           <button type="button" class="mode-toggle-btn" data-color-mode="gradient">🌈 Gradient</button>
         </div>
 
-        <!-- Solid fields -->
         <div id="solidFields">
           <div class="row">
             <div class="field">
@@ -269,7 +258,6 @@
           </div>
         </div>
 
-        <!-- Gradient fields -->
         <div id="gradientFields" hidden>
           <div class="row">
             <div class="field">
@@ -446,13 +434,16 @@
   let currentData="";
   let isValid=false;
   let previewQr=null;
-  let previewQrHasLogo=null;  // ← BARU: track logo state
+  let previewQrHasLogo=null;
   let logoDataUrl=null;
-  let colorMode="solid"; // "solid" | "gradient"
+  let originalLogoDataUrl=null;  // ← BARU: sumber untuk crop berulang (fix #7)
+  let colorMode="solid";
 
   const HISTORY_KEY="qr-generator-history";
   const MODE_KEY="qr-generator-last-mode";
   const HISTORY_MAX=20;
+  const LOGO_SOURCE_MAX=800;   // Resolusi sumber crop (fix #7)
+  const LOGO_QR_MAX=400;       // Resolusi logo yang ditanam ke QR
 
   const CORNER_MAP={
     square:{square:"square",dot:"square"},rounded:{square:"extra-rounded",dot:"dot"},
@@ -460,15 +451,14 @@
     "classy-rounded":{square:"extra-rounded",dot:"dot"},"extra-rounded":{square:"extra-rounded",dot:"dot"},
   };
 
-  // TABS
   function switchTab(name){
     els.tabs.forEach((t)=>t.classList.toggle("active",t.dataset.tab===name));
     els.panels.forEach((p)=>(p.hidden=p.dataset.panel!==name));
   }
   els.tabs.forEach((t)=>t.addEventListener("click",()=>switchTab(t.dataset.tab)));
 
-  // COLOR MODE TOGGLE
-  function setColorMode(mode){
+  // FIX #5: tambah flag skipRender biar tidak double render di restoreFromHistory
+  function setColorMode(mode, skipRender){
     colorMode=mode;
     els.colorModeToggle.querySelectorAll(".mode-toggle-btn").forEach((b)=>{
       b.classList.toggle("active",b.dataset.colorMode===mode);
@@ -476,14 +466,15 @@
     els.solidFields.hidden=mode!=="solid";
     els.gradientFields.hidden=mode!=="gradient";
     updateGradPreview();
-    renderPreview();
-    updateContrastChecker();
+    if(!skipRender){
+      renderPreview();
+      updateContrastChecker();
+    }
   }
   els.colorModeToggle.querySelectorAll(".mode-toggle-btn").forEach((b)=>{
     b.addEventListener("click",()=>setColorMode(b.dataset.colorMode));
   });
 
-  // GRADIENT PREVIEW STRIP
   function updateGradPreview(){
     const c1=els.fgGrad1Hex.value;
     const c2=els.fgGrad2Hex.value;
@@ -501,7 +492,6 @@
     strip.style.background=bg;
   }
 
-  // MODE GRID
   function renderModeGrid(){
     els.modeGrid.innerHTML="";
     Object.values(MODES).forEach((mode)=>{
@@ -534,7 +524,6 @@
     renderModeGrid();renderModeContent();
   }
 
-  // MODE CONTENT
   function renderModeContent(){
     els.modeContent.innerHTML="";
     ["url","urlStatus","urlHint","waPhone","waStatus","waHint","waMessage",
@@ -585,6 +574,7 @@
     const urlWrap=document.createElement("div");urlWrap.className="url-wrap";
     const input=document.createElement("input");input.type="text";input.id="urlInput";
     input.placeholder="contoh.com/halaman";input.autocomplete="off";input.spellcheck=false;
+    input.maxLength=2000;  // FIX #4: batas panjang URL
     const status=document.createElement("span");status.className="url-status";status.id="urlStatus";
     urlWrap.appendChild(input);urlWrap.appendChild(status);
     const hint=document.createElement("div");hint.className="hint";hint.id="urlHint";
@@ -637,6 +627,7 @@
     const prefix=document.createElement("span");prefix.className="phone-prefix";prefix.textContent="+62";
     const input=document.createElement("input");input.type="text";input.id="waPhone";
     input.placeholder="81234567890";input.inputMode="tel";input.autocomplete="off";input.spellcheck=false;
+    input.maxLength=15;  // FIX #4: batas nomor WA
     const status=document.createElement("span");status.className="url-status";status.id="waStatus";
     phoneWrap.appendChild(prefix);phoneWrap.appendChild(input);phoneWrap.appendChild(status);
     const hint=document.createElement("div");hint.className="hint";hint.id="waHint";
@@ -696,7 +687,7 @@
     const{field:fieldSsid,input:ssidInput}=makeField({
       label:"Nama Jaringan (SSID)",id:"wifiSsid",placeholder:"NamaWiFiKamu",
       hint:"Nama WiFi yang muncul saat mencari jaringan.",
-      autocomplete:"off",spellcheck:false,
+      autocomplete:"off",spellcheck:false,maxLength:32,  // FIX #4: SSID max 32 char
     });
     wrap.appendChild(fieldSsid);
     const fieldPass=document.createElement("div");fieldPass.className="field";
@@ -706,6 +697,7 @@
     const passWrap=document.createElement("div");passWrap.className="input-with-btn";
     const passInput=document.createElement("input");passInput.type="password";passInput.id="wifiPass";
     passInput.placeholder="Password WiFi";passInput.autocomplete="off";passInput.spellcheck=false;
+    passInput.maxLength=63;  // FIX #4: WPA2 max 63 char
     const toggleBtn=document.createElement("button");toggleBtn.type="button";toggleBtn.textContent="👁";
     toggleBtn.title="Tampilkan password";
     toggleBtn.addEventListener("click",()=>{
@@ -793,34 +785,34 @@
     const wrap=document.createElement("div");
     const{field:fieldName,input:nameInput}=makeField({
       label:"Nama Lengkap *",id:"vcName",placeholder:"Budi Santoso",
-      hint:"Wajib diisi. Nama yang akan muncul di kontak.",autocomplete:"off",
+      hint:"Wajib diisi. Nama yang akan muncul di kontak.",autocomplete:"off",maxLength:100,
     });
     wrap.appendChild(fieldName);
     const row1=document.createElement("div");row1.className="row";
     const{field:fieldOrg,input:orgInput}=makeField({
       label:'Organisasi <span class="optional">(opsional)</span>',
-      id:"vcOrg",placeholder:"PT Maju Jaya",autocomplete:"off",
+      id:"vcOrg",placeholder:"PT Maju Jaya",autocomplete:"off",maxLength:100,
     });
     const{field:fieldTitle,input:titleInput}=makeField({
       label:'Jabatan <span class="optional">(opsional)</span>',
-      id:"vcTitle",placeholder:"Marketing Manager",autocomplete:"off",
+      id:"vcTitle",placeholder:"Marketing Manager",autocomplete:"off",maxLength:100,
     });
     row1.appendChild(fieldOrg);row1.appendChild(fieldTitle);wrap.appendChild(row1);
     const{field:fieldPhone,input:phoneInput}=makeField({
       label:'Telepon <span class="optional">(opsional)</span>',
-      id:"vcPhone",placeholder:"+628123456789",inputMode:"tel",
+      id:"vcPhone",placeholder:"+628123456789",inputMode:"tel",maxLength:30,
       hint:"Format bebas. Contoh: <code>+628123456789</code>",autocomplete:"off",
     });
     wrap.appendChild(fieldPhone);
     const{field:fieldEmail,input:emailInput}=makeField({
       label:'Email <span class="optional">(opsional)</span>',
-      id:"vcEmail",type:"email",placeholder:"budi@example.com",
+      id:"vcEmail",type:"email",placeholder:"budi@example.com",maxLength:100,
       autocomplete:"off",hint:"Format email yang valid.",
     });
     wrap.appendChild(fieldEmail);
     const{field:fieldWeb,input:webInput}=makeField({
       label:'Website <span class="optional">(opsional)</span>',
-      id:"vcWebsite",placeholder:"https://example.com",
+      id:"vcWebsite",placeholder:"https://example.com",maxLength:200,
       autocomplete:"off",spellcheck:false,
       hint:"Otomatis ditambahkan <code>https://</code> kalau belum ada.",
     });
@@ -866,11 +858,17 @@
     updatePreviewState();
   }
 
-  // PREVIEW STATE
+  // FIX #4: updatePreviewState cek hasil render
   function updatePreviewState(){
     els.encodedText.textContent=currentData||"—";
-    els.btnPng.disabled=!isValid;els.btnSvg.disabled=!isValid;els.btnCopy.disabled=!isValid;
-    renderPreview();renderCtaPreview();updateContrastChecker();updateDensityIndicator();
+    const renderOk=renderPreview();  // ← return boolean sekarang
+    const canDownload=isValid&&renderOk;
+    els.btnPng.disabled=!canDownload;
+    els.btnSvg.disabled=!canDownload;
+    els.btnCopy.disabled=!canDownload;
+    renderCtaPreview();
+    updateContrastChecker();
+    updateDensityIndicator();
   }
 
   function updateDensityIndicator(){
@@ -902,7 +900,6 @@
     }
   }
 
-  // QR OPTIONS — SPRINT 3A gradient support
   function baseOptions(){
     const type=els.moduleType.value;
     const corners=CORNER_MAP[type]||CORNER_MAP.square;
@@ -946,7 +943,8 @@
 
     if(logoDataUrl){
       opts.image=logoDataUrl;
-      opts.imageOptions={crossOrigin:"anonymous",margin:8,imageSize:0.35,hideBackgroundDots:true};
+      // FIX #3: 0.35 → 0.28 (lebih aman untuk scan)
+      opts.imageOptions={crossOrigin:"anonymous",margin:8,imageSize:0.28,hideBackgroundDots:true};
     }
     return opts;
   }
@@ -957,25 +955,36 @@
     const size=parseInt(els.size.value,10);
     return Object.assign({},baseOptions(),{width:size,height:size});
   }
-    function renderPreview(){
+
+  // FIX #4: renderPreview return boolean, tidak crash kalau data terlalu panjang
+  function renderPreview(){
     const opts=previewOptions();
     const hasLogoNow=!!logoDataUrl;
-
-    // Recreate instance kalau:
-    // - Belum ada instance, ATAU
-    // - Transisi logo state berubah (ada-logo ↔ tidak-ada-logo)
-    // Karena library pakai deepmerge, kita tidak bisa hapus image via update()
-    if(!previewQr || previewQrHasLogo!==hasLogoNow){
-      els.qrCanvasWrap.innerHTML="";
-      previewQr=new QRCodeStyling(opts);
-      previewQr.append(els.qrCanvasWrap);
-      previewQrHasLogo=hasLogoNow;
-    }else{
-      previewQr.update(opts);
+    try{
+      if(!previewQr||previewQrHasLogo!==hasLogoNow){
+        els.qrCanvasWrap.innerHTML="";
+        previewQr=new QRCodeStyling(opts);
+        previewQr.append(els.qrCanvasWrap);
+        previewQrHasLogo=hasLogoNow;
+      }else{
+        previewQr.update(opts);
+      }
+      // Cek kalau canvas benar-benar ada & tidak kosong (SVG gagal render)
+      const canvas=els.qrCanvasWrap.querySelector("canvas");
+      if(canvas&&(canvas.width===0||canvas.height===0)){
+        throw new Error("Canvas kosong");
+      }
+      return true;
+    }catch(err){
+      console.error("QR render failed:",err);
+      els.qrCanvasWrap.innerHTML='<div class="qr-error">⚠️ Data terlalu panjang untuk di-encode sebagai QR code.<br><br>Kurangi panjang data atau turunkan <strong>Error Correction Level</strong>.</div>';
+      previewQr=null;
+      previewQrHasLogo=null;
+      return false;
     }
   }
 
-  // CONTRAST (support gradient)
+  // CONTRAST
   function hexToRgb(hex){
     let h=hex.replace("#","").trim();
     if(h.length===3)h=h.split("").map((c)=>c+c).join("");
@@ -997,7 +1006,7 @@
     return(lighter+0.05)/(darker+0.05);
   }
 
-    function updateContrastChecker(){
+  function updateContrastChecker(){
     let fgColors,bg;
     if(colorMode==="gradient"){
       fgColors=[els.fgGrad1Hex.value,els.fgGrad2Hex.value];
@@ -1023,15 +1032,6 @@
     const bgLum=relLum(hexToRgb(bg));
     const allPolarityOk=fgColors.every((fg)=>relLum(hexToRgb(fg))<bgLum);
 
-    // ============================================================
-    // Threshold khusus QR (bukan WCAG teks)
-    // Referensi: ISO/IEC 18004 + praktik umum
-    //   < 1.5:1  → hampir pasti gagal
-    //   1.5-2.5  → berisiko (tergantung cahaya & kamera)
-    //   2.5-4    → cukup (aman untuk mayoritas kondisi)
-    //   4-7      → baik
-    //   > 7      → sangat baik
-    // ============================================================
     let statusClass,statusText;
     if(worstRatio>=7&&allPolarityOk){statusClass="ok";statusText="Sangat baik";}
     else if(worstRatio>=4&&allPolarityOk){statusClass="ok";statusText="Baik";}
@@ -1078,8 +1078,11 @@
     const file=e.target.files[0];if(!file)return;
     if(file.size>2*1024*1024){showLogoNotice("Ukuran file terlalu besar. Maksimal 2 MB.","err");return;}
     try{
-      const dataUrl=await resizeImage(file,400);
-      logoDataUrl=dataUrl;lockEc(true);renderLogoUI(dataUrl);renderPreview();
+      // FIX #7: simpan dua versi — sumber (800px) & QR (400px)
+      const sourceDataUrl=await resizeImage(file,LOGO_SOURCE_MAX);
+      originalLogoDataUrl=sourceDataUrl;
+      logoDataUrl=await resizeImageFromDataUrl(sourceDataUrl,LOGO_QR_MAX);
+      lockEc(true);renderLogoUI(logoDataUrl);renderPreview();
     }catch(err){console.error(err);showLogoNotice("Gagal memuat gambar. Coba file lain.","err");}
   });
   function lockEc(locked){
@@ -1110,7 +1113,9 @@
     els.logoUploader.appendChild(img);els.logoUploader.appendChild(info);els.logoUploader.appendChild(actions);
   }
   function removeLogo(){
-    logoDataUrl=null;els.logoInput.value="";
+    logoDataUrl=null;
+    originalLogoDataUrl=null;  // FIX #7: clear juga sumber
+    els.logoInput.value="";
     els.logoUploader.innerHTML="";els.logoUploader.classList.remove("has-logo");
     const info=document.createElement("div");info.className="logo-info";
     info.innerHTML='<div class="logo-title">📷 Tambah logo di tengah</div><div class="logo-sub">PNG/JPG/SVG · Maks 2 MB · Otomatis resize</div>';
@@ -1140,16 +1145,35 @@
       reader.onerror=reject;reader.readAsDataURL(file);
     });
   }
+  // FIX #7: resize dari dataUrl yang sudah ada (untuk bikin versi QR)
+  function resizeImageFromDataUrl(dataUrl,maxSize){
+    return new Promise((resolve,reject)=>{
+      const img=new Image();
+      img.onload=()=>{
+        const canvas=document.createElement("canvas");
+        let w=img.width,h=img.height;
+        if(w>h){if(w>maxSize){h=h*maxSize/w;w=maxSize;}}
+        else{if(h>maxSize){w=w*maxSize/h;h=maxSize;}}
+        canvas.width=w;canvas.height=h;
+        const ctx=canvas.getContext("2d");
+        ctx.drawImage(img,0,0,w,h);
+        resolve(canvas.toDataURL("image/png"));
+      };
+      img.onerror=reject;img.src=dataUrl;
+    });
+  }
 
-  // CROP MODAL (same as before)
+  // CROP MODAL
   const cropState={img:null,displayW:0,displayH:0,imgLeft:0,imgTop:0,containerSize:0,sel:{x:0,y:0,size:0},minSize:0,maxSize:0};
   function openCropModal(){
-    if(!logoDataUrl)return;
+    // FIX #7: selalu load dari originalLogoDataUrl, bukan dari logoDataUrl yang sudah di-crop
+    const source=originalLogoDataUrl||logoDataUrl;
+    if(!source)return;
     const img=new Image();
-    img.onload=()=>{cropState.img=img;setupCropUI();els.cropModal.hidden=false;};
-    img.src=logoDataUrl;
+    img.onload=()=>{cropState.img=img;setupCropUI(source);els.cropModal.hidden=false;};
+    img.src=source;
   }
-  function setupCropUI(){
+  function setupCropUI(sourceDataUrl){
     const containerSize=Math.min(360,window.innerWidth-80);
     els.cropContainer.style.width=containerSize+"px";
     els.cropContainer.style.height=containerSize+"px";
@@ -1159,7 +1183,7 @@
     cropState.displayW=displayW;cropState.displayH=displayH;
     cropState.imgLeft=(containerSize-displayW)/2;cropState.imgTop=(containerSize-displayH)/2;
     cropState.containerSize=containerSize;
-    els.cropImage.src=logoDataUrl;
+    els.cropImage.src=sourceDataUrl;
     els.cropImage.style.width=displayW+"px";els.cropImage.style.height=displayH+"px";
     els.cropImage.style.left=cropState.imgLeft+"px";els.cropImage.style.top=cropState.imgTop+"px";
     const minDim=Math.min(displayW,displayH);
@@ -1217,6 +1241,7 @@
     canvas.width=400;canvas.height=400;
     const ctx=canvas.getContext("2d");
     ctx.drawImage(cropState.img,cropX,cropY,cropSize,cropSize,0,0,400,400);
+    // FIX #7: hanya update logoDataUrl (yang dipakai QR), bukan originalLogoDataUrl
     logoDataUrl=canvas.toDataURL("image/png");
     renderLogoUI(logoDataUrl);renderPreview();closeCropModal();
   });
@@ -1235,7 +1260,10 @@
         else await downloadSvgWithCta(cta);
       }
       saveToHistory();
-    }catch(err){console.error(err);alert("Gagal generate file. Coba lagi.");}
+    }catch(err){
+      console.error(err);
+      alert("Gagal generate file. Data mungkin terlalu panjang untuk QR code. Coba kurangi panjang data atau turunkan error correction level.");
+    }
   }
   function downloadBlob(blob,name){
     const url=URL.createObjectURL(blob);
@@ -1373,7 +1401,9 @@
     };
     return{};
   }
-    function saveToHistory(){
+
+  // FIX #1: saveToHistory dengan handling quota penuh yang benar
+  function saveToHistory(){
     if(!isValid||!currentData)return;
     const items=getHistory();
     const settings={
@@ -1384,27 +1414,35 @@
       fgGrad1:els.fgGrad1Hex.value,fgGrad2:els.fgGrad2Hex.value,
       gradType:els.gradType.value,gradRotation:els.gradRotation.value,
       bgGrad:els.bgHexGrad.value,
-      logo:logoDataUrl || null,   // ← BARU: simpan logo
+      logo:logoDataUrl||null,
     };
     const fields=getCurrentFields();
     const fingerprint=currentMode+"|"+JSON.stringify(fields)+"|"+JSON.stringify(settings);
     const filtered=items.filter((it)=>it.fingerprint!==fingerprint);
     const newItem={id:Date.now(),mode:currentMode,data:currentData,fields,settings,fingerprint,createdAt:Date.now()};
-    let updated=[newItem,...filtered].slice(0,HISTORY_MAX);
+    const fullList=[newItem,...filtered].slice(0,HISTORY_MAX);
 
-    // Coba simpan; kalau storage penuh, buang item terlama dulu
-    while(updated.length > 1){
+    // Coba simpan; kalau penuh, buang item terlama sampai berhasil
+    let saved=false;
+    for(let n=fullList.length;n>=1;n--){
+      const subset=fullList.slice(0,n);
       try{
-        localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+        localStorage.setItem(HISTORY_KEY,JSON.stringify(subset));
+        saved=true;
         break;
       }catch(e){
-        // Buang item terlama dan coba lagi
-        updated = updated.slice(0, updated.length - 1);
+        // lanjut coba dengan jumlah lebih sedikit
       }
+    }
+
+    if(!saved){
+      // Bahkan 1 item pun tidak muat — kemungkinan logo terlalu besar
+      alert("QR ini tidak bisa disimpan di riwayat karena ukurannya terlalu besar (biasanya karena logo).\n\nQR tetap bisa di-download. Untuk menghemat ruang, coba hapus riwayat lama atau gunakan logo yang lebih kecil.");
     }
     updateHistoryCount();
     renderHistory();
   }
+
   function deleteFromHistory(id){setHistory(getHistory().filter((it)=>it.id!==id));renderHistory();}
   function clearHistory(){
     if(!confirm("Hapus semua riwayat? Tindakan ini tidak bisa dibatalkan."))return;
@@ -1462,15 +1500,15 @@
     });
     updateHistoryCount();
   }
-   function restoreFromHistory(item){
-    // 1. Switch mode
+
+  // FIX #5: setColorMode dengan skipRender untuk hindari render pakai data setengah jadi
+  function restoreFromHistory(item){
     if(item.mode&&MODES[item.mode]&&MODES[item.mode].available){
       if(currentMode!==item.mode){
         currentMode=item.mode;renderModeGrid();renderModeContent();
       }
     }
 
-    // 2. Restore fields sesuai mode
     const f=item.fields||{};
     if(item.mode==="url"&&els.url)els.url.value=f.url||"";
     else if(item.mode==="wa"){
@@ -1492,15 +1530,15 @@
       if(els.vcWebsite)els.vcWebsite.value=f.website||"";
     }
 
-    // 3. Restore LOGO dulu (karena berpengaruh ke lock EC)
     const s=item.settings||{};
     if(s.logo){
       logoDataUrl=s.logo;
+      // Logo dari history sudah berupa final — pakai sebagai sumber crop juga
+      originalLogoDataUrl=s.logo;
       renderLogoUI(logoDataUrl);
       lockEc(true);
     }else{
-      // Item history ini tidak punya logo — reset logo saat ini
-      logoDataUrl=null;
+      logoDataUrl=null;originalLogoDataUrl=null;
       els.logoInput.value="";
       els.logoUploader.innerHTML="";
       els.logoUploader.classList.remove("has-logo");
@@ -1511,7 +1549,6 @@
       lockEc(false);
     }
 
-    // 4. Restore style settings
     if(s.margin)els.margin.value=s.margin;
     if(s.moduleType)els.moduleType.value=s.moduleType;
     if(s.size)els.size.value=s.size;
@@ -1524,13 +1561,13 @@
     if(s.gradRotation){els.gradRotation.value=s.gradRotation;els.gradRotationValue.textContent=s.gradRotation+"°";}
     if(s.cta!==undefined)els.ctaText.value=s.cta;
 
-    // EC: hanya set kalau TIDAK dikunci logo
     if(s.ec&&!els.ec.disabled)els.ec.value=s.ec;
 
-    if(s.colorMode)setColorMode(s.colorMode);
+    // FIX #5: skipRender=true supaya tidak render dengan state setengah jadi
+    if(s.colorMode)setColorMode(s.colorMode,true);
     updateGradPreview();
 
-    // 5. Trigger update sesuai mode
+    // Trigger update sesuai mode (ini yang akan render final dengan semua setting lengkap)
     if(item.mode==="url")updateUrlStatus();
     else if(item.mode==="wa")updateWhatsAppStatus();
     else if(item.mode==="wifi")updateWifiStatus();
@@ -1538,10 +1575,8 @@
     renderCtaPreview();switchTab("mode");
   }
 
-  // ENCODED TOGGLE
   els.encodedToggle.addEventListener("click",()=>{els.encodedWrap.classList.toggle("open");});
 
-  // STYLE EVENTS
   els.ec.addEventListener("change",()=>{renderPreview();updateDensityIndicator();});
   els.margin.addEventListener("change",renderPreview);
   els.moduleType.addEventListener("change",renderPreview);
@@ -1552,13 +1587,12 @@
   els.btnCopy.addEventListener("click",copyUrl);
   els.btnClearHistory.addEventListener("click",clearHistory);
 
-  // INIT
-   function init(){
+  function init(){
     try{
       const saved=localStorage.getItem(MODE_KEY);
       if(saved&&MODES[saved]&&MODES[saved].available)currentMode=saved;
     }catch(_){}
-    lockEc(false); // ← BARU: reset lock state saat buka halaman
+    lockEc(false);
     renderModeGrid();renderModeContent();renderHistory();
     updateGradPreview();renderCtaPreview();
     setColorMode("solid");
