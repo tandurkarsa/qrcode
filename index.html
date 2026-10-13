@@ -168,6 +168,8 @@
   .modal-footer{display:flex;gap:8px;padding:16px 20px;border-top:1px solid var(--border);background:#fafbfc}
   .modal-footer button{flex:1}
   .footer-note{margin-top:20px;text-align:center;font-size:12px;color:var(--muted-soft)}
+    /* Fix: pastikan [hidden] selalu menang lawan display custom */
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
@@ -1352,7 +1354,7 @@
     };
     return{};
   }
-  function saveToHistory(){
+    function saveToHistory(){
     if(!isValid||!currentData)return;
     const items=getHistory();
     const settings={
@@ -1363,13 +1365,26 @@
       fgGrad1:els.fgGrad1Hex.value,fgGrad2:els.fgGrad2Hex.value,
       gradType:els.gradType.value,gradRotation:els.gradRotation.value,
       bgGrad:els.bgHexGrad.value,
+      logo:logoDataUrl || null,   // ← BARU: simpan logo
     };
     const fields=getCurrentFields();
     const fingerprint=currentMode+"|"+JSON.stringify(fields)+"|"+JSON.stringify(settings);
     const filtered=items.filter((it)=>it.fingerprint!==fingerprint);
     const newItem={id:Date.now(),mode:currentMode,data:currentData,fields,settings,fingerprint,createdAt:Date.now()};
-    const updated=[newItem,...filtered].slice(0,HISTORY_MAX);
-    setHistory(updated);renderHistory();
+    let updated=[newItem,...filtered].slice(0,HISTORY_MAX);
+
+    // Coba simpan; kalau storage penuh, buang item terlama dulu
+    while(updated.length > 1){
+      try{
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+        break;
+      }catch(e){
+        // Buang item terlama dan coba lagi
+        updated = updated.slice(0, updated.length - 1);
+      }
+    }
+    updateHistoryCount();
+    renderHistory();
   }
   function deleteFromHistory(id){setHistory(getHistory().filter((it)=>it.id!==id));renderHistory();}
   function clearHistory(){
@@ -1428,12 +1443,15 @@
     });
     updateHistoryCount();
   }
-  function restoreFromHistory(item){
+   function restoreFromHistory(item){
+    // 1. Switch mode
     if(item.mode&&MODES[item.mode]&&MODES[item.mode].available){
       if(currentMode!==item.mode){
         currentMode=item.mode;renderModeGrid();renderModeContent();
       }
     }
+
+    // 2. Restore fields sesuai mode
     const f=item.fields||{};
     if(item.mode==="url"&&els.url)els.url.value=f.url||"";
     else if(item.mode==="wa"){
@@ -1454,23 +1472,46 @@
       if(els.vcEmail)els.vcEmail.value=f.email||"";
       if(els.vcWebsite)els.vcWebsite.value=f.website||"";
     }
-    if(item.settings){
-      const s=item.settings;
-      if(s.ec&&!els.ec.disabled)els.ec.value=s.ec;
-      if(s.margin)els.margin.value=s.margin;
-      if(s.moduleType)els.moduleType.value=s.moduleType;
-      if(s.size)els.size.value=s.size;
-      if(s.fgColor){els.fgColor.value=s.fgColor;els.fgHex.value=s.fgColor;}
-      if(s.bgColor){els.bgColor.value=s.bgColor;els.bgHex.value=s.bgColor;}
-      if(s.fgGrad1){els.fgGrad1Color.value=s.fgGrad1;els.fgGrad1Hex.value=s.fgGrad1;}
-      if(s.fgGrad2){els.fgGrad2Color.value=s.fgGrad2;els.fgGrad2Hex.value=s.fgGrad2;}
-      if(s.bgGrad){els.bgColorGrad.value=s.bgGrad;els.bgHexGrad.value=s.bgGrad;}
-      if(s.gradType)els.gradType.value=s.gradType;
-      if(s.gradRotation){els.gradRotation.value=s.gradRotation;els.gradRotationValue.textContent=s.gradRotation+"°";}
-      if(s.cta!==undefined)els.ctaText.value=s.cta;
-      if(s.colorMode)setColorMode(s.colorMode);
-      updateGradPreview();
+
+    // 3. Restore LOGO dulu (karena berpengaruh ke lock EC)
+    const s=item.settings||{};
+    if(s.logo){
+      logoDataUrl=s.logo;
+      renderLogoUI(logoDataUrl);
+      lockEc(true);
+    }else{
+      // Item history ini tidak punya logo — reset logo saat ini
+      logoDataUrl=null;
+      els.logoInput.value="";
+      els.logoUploader.innerHTML="";
+      els.logoUploader.classList.remove("has-logo");
+      const info=document.createElement("div");
+      info.className="logo-info";
+      info.innerHTML='<div class="logo-title">📷 Tambah logo di tengah</div><div class="logo-sub">PNG/JPG/SVG · Maks 2 MB · Otomatis resize</div>';
+      els.logoUploader.appendChild(info);
+      lockEc(false);
     }
+
+    // 4. Restore style settings
+    if(s.margin)els.margin.value=s.margin;
+    if(s.moduleType)els.moduleType.value=s.moduleType;
+    if(s.size)els.size.value=s.size;
+    if(s.fgColor){els.fgColor.value=s.fgColor;els.fgHex.value=s.fgColor;}
+    if(s.bgColor){els.bgColor.value=s.bgColor;els.bgHex.value=s.bgColor;}
+    if(s.fgGrad1){els.fgGrad1Color.value=s.fgGrad1;els.fgGrad1Hex.value=s.fgGrad1;}
+    if(s.fgGrad2){els.fgGrad2Color.value=s.fgGrad2;els.fgGrad2Hex.value=s.fgGrad2;}
+    if(s.bgGrad){els.bgColorGrad.value=s.bgGrad;els.bgHexGrad.value=s.bgGrad;}
+    if(s.gradType)els.gradType.value=s.gradType;
+    if(s.gradRotation){els.gradRotation.value=s.gradRotation;els.gradRotationValue.textContent=s.gradRotation+"°";}
+    if(s.cta!==undefined)els.ctaText.value=s.cta;
+
+    // EC: hanya set kalau TIDAK dikunci logo
+    if(s.ec&&!els.ec.disabled)els.ec.value=s.ec;
+
+    if(s.colorMode)setColorMode(s.colorMode);
+    updateGradPreview();
+
+    // 5. Trigger update sesuai mode
     if(item.mode==="url")updateUrlStatus();
     else if(item.mode==="wa")updateWhatsAppStatus();
     else if(item.mode==="wifi")updateWifiStatus();
@@ -1493,11 +1534,12 @@
   els.btnClearHistory.addEventListener("click",clearHistory);
 
   // INIT
-  function init(){
+   function init(){
     try{
       const saved=localStorage.getItem(MODE_KEY);
       if(saved&&MODES[saved]&&MODES[saved].available)currentMode=saved;
     }catch(_){}
+    lockEc(false); // ← BARU: reset lock state saat buka halaman
     renderModeGrid();renderModeContent();renderHistory();
     updateGradPreview();renderCtaPreview();
     setColorMode("solid");
