@@ -434,7 +434,7 @@
   let currentData="";
   let isValid=false;
   let previewQr=null;
-  let previewQrHasLogo=null;
+  let previewQrState={hasLogo:null,colorMode:null};
   let logoDataUrl=null;
   let originalLogoDataUrl=null;  // ← BARU: sumber untuk crop berulang (fix #7)
   let colorMode="solid";
@@ -943,33 +943,56 @@
 
     if(logoDataUrl){
       opts.image=logoDataUrl;
-      // FIX #3: 0.35 → 0.28 (lebih aman untuk scan)
-      opts.imageOptions={crossOrigin:"anonymous",margin:8,imageSize:0.28,hideBackgroundDots:true};
+      // margin akan di-override proporsional di previewOptions/downloadOptions
+      opts.imageOptions={
+        crossOrigin:"anonymous",
+        margin:8,
+        imageSize:0.25,
+        hideBackgroundDots:true
+      };
+    }
+    return opts;
+  }
+    // FIX #2: imageOptions.margin di library dihitung dalam pixel absolut.
+  // Kalau tidak proporsional, cut off di preview (280px) akan beda
+  // dengan cut off di download (1024px). Kita samakan proporsinya.
+  function applyImageMargin(opts,width){
+    if(opts.image&&opts.imageOptions){
+      opts.imageOptions=Object.assign({},opts.imageOptions,{
+        margin:Math.round(width*0.035)  // 3.5% dari width — proporsional
+      });
     }
     return opts;
   }
   function previewOptions(){
-    return Object.assign({},baseOptions(),{width:280,height:280,type:"canvas"});
+    const opts=Object.assign({},baseOptions(),{width:280,height:280,type:"canvas"});
+    return applyImageMargin(opts,280);
   }
   function downloadOptions(){
     const size=parseInt(els.size.value,10);
-    return Object.assign({},baseOptions(),{width:size,height:size});
+    const opts=Object.assign({},baseOptions(),{width:size,height:size});
+    return applyImageMargin(opts,size);
   }
-
+  
   // FIX #4: renderPreview return boolean, tidak crash kalau data terlalu panjang
-  function renderPreview(){
+    function renderPreview(){
     const opts=previewOptions();
-    const hasLogoNow=!!logoDataUrl;
+    const newState={hasLogo:!!logoDataUrl,colorMode:colorMode};
     try{
-      if(!previewQr||previewQrHasLogo!==hasLogoNow){
+      // Recreate instance kalau salah satu state ini berubah.
+      // Alasan: library pakai deepmerge di update(), jadi field lama
+      // seperti .gradient atau .image tetap tersimpan meski tidak di-set ulang.
+      const needsRecreate=!previewQr
+        ||previewQrState.hasLogo!==newState.hasLogo
+        ||previewQrState.colorMode!==newState.colorMode;
+      if(needsRecreate){
         els.qrCanvasWrap.innerHTML="";
         previewQr=new QRCodeStyling(opts);
         previewQr.append(els.qrCanvasWrap);
-        previewQrHasLogo=hasLogoNow;
+        previewQrState=newState;
       }else{
         previewQr.update(opts);
       }
-      // Cek kalau canvas benar-benar ada & tidak kosong (SVG gagal render)
       const canvas=els.qrCanvasWrap.querySelector("canvas");
       if(canvas&&(canvas.width===0||canvas.height===0)){
         throw new Error("Canvas kosong");
@@ -979,7 +1002,7 @@
       console.error("QR render failed:",err);
       els.qrCanvasWrap.innerHTML='<div class="qr-error">⚠️ Data terlalu panjang untuk di-encode sebagai QR code.<br><br>Kurangi panjang data atau turunkan <strong>Error Correction Level</strong>.</div>';
       previewQr=null;
-      previewQrHasLogo=null;
+      previewQrState={hasLogo:null,colorMode:null};
       return false;
     }
   }
